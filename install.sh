@@ -598,6 +598,13 @@ case $INSTALL_MODE in
 esac
 
 # ─── Post-install ─────────────────────────────────────────────────────────────
+echo -e "${YELLOW}Installing Graphify...${NC}"
+if command -v npx &> /dev/null; then
+    npx graphify install --platform opencode || echo -e "${YELLOW}Failed to install graphify, skipping.${NC}"
+else
+    echo -e "${YELLOW}npm/npx not found, skipping graphify installation.${NC}"
+fi
+
 echo ""
 echo -e "${BOLD}${GREEN}══════════════════════════════════════════${NC}"
 echo -e "${BOLD}${GREEN}   OpenCode MAX v${VERSION} installed! 🚀${NC}"
@@ -612,7 +619,6 @@ echo -e "  ${BOLD}/plan <task>${NC}                — Create implementation pla
 echo -e "  ${BOLD}/debug <issue>${NC}              — Systematic debugging"
 echo -e "  ${BOLD}/security${NC}                   — Security audit"
 echo -e "  ${BOLD}/commit${NC}                     — Generate commit message"
-echo -e "  ${BOLD}@grill-me${NC}                   — Challenge your design decisions"
 echo -e "  ${BOLD}@perf-profiler${NC}              — Performance analysis"
 echo ""
 echo -e "${CYAN}Stay updated:${NC}"

@@ -1,7 +1,7 @@
 {
   // ─── OpenCode MAX ────────────────────────────────────────────────────────────
   // https://github.com/ab1nv/opencode-max
-  // Author: Abhinav Singh (ab1nv) · v0.1.0
+  // Author: Abhinav Singh (ab1nv) · v0.1.1
   // Main configuration — agents, permissions, commands, MCP.
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@
     "AGENTS.md",
     ".opencode/rules/*.md"
   ],
+  "default_agent": "caveman",
 
   // ─── Permissions ─────────────────────────────────────────────────────────────
   // Default: ask for everything, then whitelist safe patterns.

@@ -1,12 +1,11 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OpenCode-MAX-fe8019?style=for-the-badge&logoColor=white" alt="OpenCode MAX" />
-  <img src="https://img.shields.io/badge/version-1.0.0-fabd2f?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/github/v/tag/ab1nv/opencode-max?style=for-the-badge&color=fabd2f&label=version" alt="Version" />
   <img src="https://img.shields.io/badge/Theme-Gruvbox-fbf1c7?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgZmlsbD0iI2ZlODAxOSIvPjwvc3ZnPg==&logoColor=282828" alt="Gruvbox Theme" />
   <img src="https://img.shields.io/badge/Agents-12-b8bb26?style=for-the-badge" alt="12 Agents" />
   <img src="https://img.shields.io/badge/Skills-6-83a598?style=for-the-badge" alt="6 Skills" />
   <img src="https://img.shields.io/badge/Commands-14-b8bb26?style=for-the-badge" alt="14 Commands" />
   <img src="https://img.shields.io/badge/Tools-2-d3869b?style=for-the-badge" alt="2 Tools" />
-  <a href="https://github.com/ab1nv/opencode-max"><img src="https://img.shields.io/badge/author-Abhinav%20Singh-83a598?style=for-the-badge" alt="Author" /></a>
 </p>
 
 <h1 align="center">
@@ -60,7 +59,13 @@ OpenCode MAX gives you:
 
 ## Quick Install
 
-### Option 1: Clone & Install (Recommended)
+### Option 1: One-Line Install (Recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ab1nv/opencode-max/master/install.sh | bash
+```
+
+### Option 2: Clone & Install
 
 ```bash
 git clone https://github.com/ab1nv/opencode-max.git
@@ -499,17 +504,5 @@ This configuration is inspired by and built upon:
 - [Matt Pocock's Skills](https://github.com/mattpocock/skills) — Workflow skill design
 - [Oh My Codex (OmX)](https://github.com/hiaux0/oh-my-codex) — Agent orchestration patterns
 - [Andrej Karpathy's LLM Skills](https://karpathy.ai/) - Base of entire design
-
----
-
-## Author
-
-<p align="center">
-  Built and maintained by <a href="https://github.com/ab1nv"><strong>Abhinav Singh (ab1nv)</strong></a><br/>
-  <a href="https://github.com/ab1nv/opencode-max">github.com/ab1nv/opencode-max</a> · v1.0.0
-</p>
-
-> OpenCode MAX is a community resource. Star ⭐ the repo if it saves you time,
-> and open a PR if you've discovered a new pattern worth sharing.
 
 ---
