@@ -1,3 +1,8 @@
+<!-- OpenCode MAX — .opencode/skills/to-prd/SKILL.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Skill: to-prd workflow. -->
+
 ---
 name: to-prd
 description: Transform a rough idea into a structured Product Requirements Document

@@ -1,3 +1,8 @@
+<!-- OpenCode MAX — .opencode/skills/debug-loop/SKILL.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Skill: debug-loop workflow. -->
+
 ---
 name: debug-loop
 description: Systematic hypothesis-driven debugging loop for complex bugs

@@ -1,3 +1,8 @@
+<!-- OpenCode MAX — AGENTS.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Global rules loaded into every OpenCode session. -->
+
 # OpenCode MAX — System Rules
 
 > These rules are loaded into every OpenCode session. They define how the AI agent operates across all projects.

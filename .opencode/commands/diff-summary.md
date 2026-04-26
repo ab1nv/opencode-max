@@ -1,3 +1,7 @@
+<!-- OpenCode MAX — .opencode/commands/diff-summary.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     /diff-summary command — summarize uncommitted changes. -->
 ---
 description: Summarize what changed since the last commit
 ---

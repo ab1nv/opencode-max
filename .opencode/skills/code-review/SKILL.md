@@ -1,3 +1,8 @@
+<!-- OpenCode MAX — .opencode/skills/code-review/SKILL.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Skill: code-review workflow. -->
+
 ---
 name: code-review
 description: Comprehensive code review checklist covering quality, security, and performance

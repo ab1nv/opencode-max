@@ -1,3 +1,7 @@
+<!-- OpenCode MAX — .opencode/agents/changelog.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Changelog generator subagent. -->
 ---
 description: Generates and maintains a CHANGELOG from git history
 mode: subagent

@@ -1,3 +1,8 @@
+<!-- OpenCode MAX — .opencode/skills/plan-first/SKILL.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Skill: plan-first workflow. -->
+
 ---
 name: plan-first
 description: Enforce a plan-before-code workflow for complex tasks

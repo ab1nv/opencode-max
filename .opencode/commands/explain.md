@@ -1,3 +1,7 @@
+<!-- OpenCode MAX — .opencode/commands/explain.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     /explain command — plain-English code explanation. -->
 ---
 description: Explain a file or function in plain English
 ---

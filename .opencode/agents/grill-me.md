@@ -1,3 +1,7 @@
+<!-- OpenCode MAX — .opencode/agents/grill-me.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Design decision challenger subagent. -->
 ---
 description: Quick-fire challenge agent that grills you on design decisions
 mode: subagent

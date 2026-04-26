@@ -1,3 +1,8 @@
+// OpenCode MAX — .opencode/tools/handoff.ts
+// https://github.com/ab1nv/opencode-max
+// Author: Abhinav Singh (ab1nv) · v1.0.0
+// Tool: save/load structured session handoff notes across OpenCode sessions.
+
 import { tool } from "@opencode-ai/plugin"
 import path from "path"
 import { promises as fs } from "node:fs"

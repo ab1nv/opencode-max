@@ -1,3 +1,8 @@
+<!-- OpenCode MAX — .opencode/skills/tdd/SKILL.md
+     https://github.com/ab1nv/opencode-max
+     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Skill: tdd workflow. -->
+
 ---
 name: tdd
 description: Test-driven development with Red-Green-Refactor cycles

@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
 # OpenCode MAX — Installation Script
+# https://github.com/ab1nv/opencode-max
+# Author: Abhinav Singh (ab1nv)
+#
 # Copies the entire configuration to your project or global config.
+# Supports smart manifest-based updates that preserve your customizations.
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Colors
+# ─── Version ──────────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="$(cat "${SCRIPT_DIR}/VERSION" 2>/dev/null || echo "unknown")"
+
+# ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,78 +22,414 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
+DIM='\033[2m'
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ─── Manifest helpers ─────────────────────────────────────────────────────────
+# The manifest stores: version + sha256 hash of every file at install time.
+# This enables true 3-way merge on update:
+#   base  = hash in manifest (what was installed)
+#   ours  = current file on disk
+#   theirs = new upstream file
+#
+# If ours == base  → user never touched it  → safe to overwrite
+# If ours != base && theirs == base → user edited, upstream didn't → keep ours
+# If ours != base && theirs != base → both changed → conflict
 
+sha256_file() {
+    sha256sum "$1" 2>/dev/null | awk '{print $1}'
+}
+
+manifest_path() {
+    # $1 = install root (project dir or global config dir)
+    echo "$1/.opencode-max.manifest"
+}
+
+manifest_write() {
+    local root="$1"
+    local version="$2"
+    local manifest
+    manifest="$(manifest_path "$root")"
+
+    echo "# OpenCode MAX manifest — do not edit manually" > "$manifest"
+    echo "VERSION=${version}" >> "$manifest"
+    echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$manifest"
+}
+
+manifest_add_file() {
+    local root="$1"
+    local abs_path="$2"
+    local rel_key="$3"
+    local manifest
+    manifest="$(manifest_path "$root")"
+    local hash
+    hash="$(sha256_file "$abs_path")"
+    echo "FILE:${rel_key}=${hash}" >> "$manifest"
+}
+
+manifest_get_hash() {
+    # Returns the hash stored in the manifest for a given file key
+    local root="$1"
+    local rel_key="$2"
+    local manifest
+    manifest="$(manifest_path "$root")"
+    [[ -f "$manifest" ]] || { echo ""; return; }
+    grep "^FILE:${rel_key}=" "$manifest" 2>/dev/null | cut -d= -f2 || echo ""
+}
+
+manifest_get_version() {
+    local root="$1"
+    local manifest
+    manifest="$(manifest_path "$root")"
+    [[ -f "$manifest" ]] || { echo "none"; return; }
+    grep "^VERSION=" "$manifest" 2>/dev/null | cut -d= -f2 || echo "none"
+}
+
+# ─── Update tracking ──────────────────────────────────────────────────────────
 declare -a UPDATE_CONFLICTS=()
+declare -a UPDATE_SKIPPED=()
 UPDATE_ADDED=0
+UPDATE_OVERWRITTEN=0
 UPDATE_UNCHANGED=0
 
-safe_update_file() {
+# ─── Smart merge: copy src→dst using 3-way logic ──────────────────────────────
+smart_update_file() {
     local src="$1"
     local dst="$2"
-    local label="$3"
+    local rel_key="$3"
+    local install_root="$4"
 
     mkdir -p "$(dirname "$dst")"
 
+    # File doesn't exist at destination → always add
     if [[ ! -f "$dst" ]]; then
         cp "$src" "$dst"
+        manifest_add_file "$install_root" "$dst" "$rel_key"
         ((UPDATE_ADDED++))
-        echo -e "${GREEN}  [ADD] ${label}${NC}"
-        return 0
+        echo -e "${GREEN}  [ADD]       ${rel_key}${NC}"
+        return
     fi
 
-    if cmp -s "$src" "$dst"; then
+    local hash_theirs hash_ours hash_base
+    hash_theirs="$(sha256_file "$src")"
+    hash_ours="$(sha256_file "$dst")"
+    hash_base="$(manifest_get_hash "$install_root" "$rel_key")"
+
+    # Files are identical → nothing to do
+    if [[ "$hash_theirs" == "$hash_ours" ]]; then
         ((UPDATE_UNCHANGED++))
-        return 0
+        return
     fi
 
-    UPDATE_CONFLICTS+=("$label")
-    echo -e "${YELLOW}  [CONFLICT] ${label}${NC}"
-    return 1
+    # No manifest entry for this file — treat it as a conflict (unknown baseline)
+    if [[ -z "$hash_base" ]]; then
+        UPDATE_CONFLICTS+=("${rel_key} [no baseline — run install first]")
+        echo -e "${YELLOW}  [CONFLICT]  ${rel_key} ${DIM}(no baseline in manifest)${NC}"
+        return
+    fi
+
+    if [[ "$hash_ours" == "$hash_base" ]]; then
+        # User never modified this file → safe to overwrite with upstream changes
+        cp "$src" "$dst"
+        manifest_add_file "$install_root" "$dst" "$rel_key"
+        ((UPDATE_OVERWRITTEN++))
+        echo -e "${CYAN}  [UPDATE]    ${rel_key}${NC}"
+    elif [[ "$hash_theirs" == "$hash_base" ]]; then
+        # Upstream didn't change this file, but user did → keep user's version
+        UPDATE_SKIPPED+=("$rel_key")
+        echo -e "${BLUE}  [KEPT]      ${rel_key} ${DIM}(your customization preserved)${NC}"
+    else
+        # Both user AND upstream changed the file → true conflict
+        # Try a 3-way merge if diff3 is available
+        if command -v diff3 &>/dev/null; then
+            local tmp_base tmp_merged
+            tmp_base="$(mktemp)"
+            tmp_merged="$(mktemp)"
+            # Reconstruct base from git if possible
+            if git -C "$SCRIPT_DIR" cat-file -e HEAD:"${src#$SCRIPT_DIR/}" 2>/dev/null; then
+                git -C "$SCRIPT_DIR" show "HEAD~1:${src#$SCRIPT_DIR/}" > "$tmp_base" 2>/dev/null || cp "$src" "$tmp_base"
+            else
+                cp "$src" "$tmp_base"
+            fi
+            if diff3 -m "$dst" "$tmp_base" "$src" > "$tmp_merged" 2>/dev/null; then
+                # Clean 3-way merge succeeded
+                cp "$tmp_merged" "$dst"
+                manifest_add_file "$install_root" "$dst" "$rel_key"
+                rm -f "$tmp_base" "$tmp_merged"
+                ((UPDATE_OVERWRITTEN++))
+                echo -e "${GREEN}  [MERGED]    ${rel_key} ${DIM}(3-way merge succeeded)${NC}"
+                return
+            fi
+            rm -f "$tmp_base" "$tmp_merged"
+        fi
+        # Could not auto-merge → record as conflict
+        UPDATE_CONFLICTS+=("$rel_key")
+        echo -e "${RED}  [CONFLICT]  ${rel_key} ${DIM}(both you and upstream changed this)${NC}"
+    fi
 }
 
-safe_update_tree() {
+smart_update_tree() {
     local src_root="$1"
     local dst_root="$2"
     local label_root="$3"
+    local install_root="$4"
 
     [[ -d "$src_root" ]] || return 0
 
     while IFS= read -r -d '' src_file; do
         local rel_path="${src_file#$src_root/}"
-        safe_update_file "$src_file" "$dst_root/$rel_path" "$label_root/$rel_path"
+        smart_update_file "$src_file" "$dst_root/$rel_path" "$label_root/$rel_path" "$install_root"
     done < <(find "$src_root" -type f -print0)
 }
 
 print_update_summary() {
     echo ""
     echo -e "${BOLD}${GREEN}══════════════════════════════════════════${NC}"
-    echo -e "${BOLD}${GREEN}        OpenCode MAX update summary${NC}"
+    echo -e "${BOLD}${GREEN}        OpenCode MAX — Update Summary${NC}"
     echo -e "${BOLD}${GREEN}══════════════════════════════════════════${NC}"
-    echo -e "${GREEN}Added files:${NC} ${UPDATE_ADDED}"
-    echo -e "${GREEN}Unchanged files:${NC} ${UPDATE_UNCHANGED}"
-    echo -e "${YELLOW}Conflicts:${NC} ${#UPDATE_CONFLICTS[@]}"
+    echo -e "  ${GREEN}Added:${NC}      ${UPDATE_ADDED} new files"
+    echo -e "  ${CYAN}Updated:${NC}    ${UPDATE_OVERWRITTEN} files (upstream changes applied)"
+    echo -e "  ${BLUE}Kept:${NC}       ${#UPDATE_SKIPPED[@]} files (your customizations preserved)"
+    echo -e "  ${DIM}Unchanged:${NC}  ${UPDATE_UNCHANGED} files"
+    echo -e "  ${YELLOW}Conflicts:${NC}  ${#UPDATE_CONFLICTS[@]} files need manual review"
+
+    if (( ${#UPDATE_SKIPPED[@]} > 0 )); then
+        echo ""
+        echo -e "${BLUE}Your customized files (not overwritten):${NC}"
+        for f in "${UPDATE_SKIPPED[@]}"; do
+            echo -e "  ${BLUE}✎ ${f}${NC}"
+        done
+    fi
 
     if (( ${#UPDATE_CONFLICTS[@]} > 0 )); then
         echo ""
-        echo -e "${YELLOW}The following files differ from the new version and were NOT overwritten:${NC}"
-        for conflict in "${UPDATE_CONFLICTS[@]}"; do
-            echo "  - ${conflict}"
+        echo -e "${YELLOW}Conflicts — both you and upstream changed these files:${NC}"
+        for f in "${UPDATE_CONFLICTS[@]}"; do
+            echo -e "  ${YELLOW}⚠ ${f}${NC}"
         done
         echo ""
-        echo -e "${YELLOW}Please merge these files manually.${NC}"
+        echo -e "${YELLOW}To resolve: compare your version with the new upstream version in${NC}"
+        echo -e "${YELLOW}${SCRIPT_DIR} and manually merge the changes you want to keep.${NC}"
     fi
 }
 
+# ─── Version check ────────────────────────────────────────────────────────────
+check_for_update() {
+    echo -e "${CYAN}Checking for updates...${NC}"
+
+    # Fetch remote tags silently
+    if ! git -C "$SCRIPT_DIR" fetch origin --tags --quiet 2>/dev/null; then
+        echo -e "${YELLOW}  Could not reach GitHub — proceeding with local version.${NC}"
+        return 1
+    fi
+
+    local remote_version
+    remote_version="$(git -C "$SCRIPT_DIR" show origin/HEAD:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")"
+
+    if [[ -z "$remote_version" ]]; then
+        echo -e "${YELLOW}  Could not read remote VERSION — proceeding with local version.${NC}"
+        return 1
+    fi
+
+    if [[ "$remote_version" == "$VERSION" ]]; then
+        echo -e "${GREEN}  ✓ You're on the latest version (v${VERSION})${NC}"
+        return 1
+    fi
+
+    # Simple semver compare: treat version as dot-separated integers
+    local local_ver remote_ver
+    local_ver="$(echo "$VERSION" | tr '.' ' ')"
+    remote_ver="$(echo "$remote_version" | tr '.' ' ')"
+
+    local lmaj lmin lpat rmaj rmin rpat
+    read -r lmaj lmin lpat <<< "$local_ver"
+    read -r rmaj rmin rpat <<< "$remote_ver"
+
+    if (( rmaj > lmaj || (rmaj == lmaj && rmin > lmin) || (rmaj == lmaj && rmin == lmin && rpat > lpat) )); then
+        echo ""
+        echo -e "${BOLD}${YELLOW}  ✦ New version available: v${remote_version} (you have v${VERSION})${NC}"
+        echo ""
+        read -rp "  Update now? (y/n) " -n 1 DO_UPDATE
+        echo ""
+        if [[ $DO_UPDATE =~ ^[Yy]$ ]]; then
+            echo -e "${CYAN}  Pulling changes from GitHub...${NC}"
+            git -C "$SCRIPT_DIR" pull --ff-only origin HEAD 2>&1 | sed 's/^/  /'
+            # Reload VERSION after pull
+            VERSION="$(cat "${SCRIPT_DIR}/VERSION" 2>/dev/null || echo "unknown")"
+            echo -e "${GREEN}  ✓ Updated to v${VERSION}${NC}"
+            return 0
+        else
+            echo -e "${BLUE}  Keeping local version v${VERSION}${NC}"
+            return 1
+        fi
+    else
+        echo -e "${BLUE}  Local version v${VERSION} is ahead of remote — no update needed.${NC}"
+        return 1
+    fi
+}
+
+# ─── Install functions ────────────────────────────────────────────────────────
+tracked_files() {
+    # Emit all managed file paths relative to SCRIPT_DIR
+    echo "opencode.json"
+    echo "tui.json"
+    echo "AGENTS.md"
+    find "${SCRIPT_DIR}/.opencode" -type f | sed "s|${SCRIPT_DIR}/||"
+    find "${SCRIPT_DIR}/prompts"   -type f | sed "s|${SCRIPT_DIR}/||"
+}
+
+install_project() {
+    local target_dir="$1"
+    echo -e "\n${CYAN}Installing to project: ${target_dir}${NC}"
+
+    manifest_write "$target_dir" "$VERSION"
+
+    cp "${SCRIPT_DIR}/opencode.json" "${target_dir}/opencode.json"
+    manifest_add_file "$target_dir" "${target_dir}/opencode.json" "opencode.json"
+    echo -e "${GREEN}  ✓ opencode.json${NC}"
+
+    cp "${SCRIPT_DIR}/tui.json" "${target_dir}/tui.json"
+    manifest_add_file "$target_dir" "${target_dir}/tui.json" "tui.json"
+    echo -e "${GREEN}  ✓ tui.json${NC}"
+
+    cp "${SCRIPT_DIR}/AGENTS.md" "${target_dir}/AGENTS.md"
+    manifest_add_file "$target_dir" "${target_dir}/AGENTS.md" "AGENTS.md"
+    echo -e "${GREEN}  ✓ AGENTS.md${NC}"
+
+    mkdir -p "${target_dir}/.opencode"
+    while IFS= read -r -d '' src_file; do
+        local rel_path="${src_file#$SCRIPT_DIR/.opencode/}"
+        local dst="${target_dir}/.opencode/${rel_path}"
+        mkdir -p "$(dirname "$dst")"
+        cp "$src_file" "$dst"
+        manifest_add_file "$target_dir" "$dst" ".opencode/${rel_path}"
+    done < <(find "${SCRIPT_DIR}/.opencode" -type f -print0)
+    echo -e "${GREEN}  ✓ .opencode/ (agents, commands, skills, themes, tools)${NC}"
+
+    mkdir -p "${target_dir}/prompts"
+    while IFS= read -r -d '' src_file; do
+        local rel_path="${src_file#$SCRIPT_DIR/prompts/}"
+        local dst="${target_dir}/prompts/${rel_path}"
+        mkdir -p "$(dirname "$dst")"
+        cp "$src_file" "$dst"
+        manifest_add_file "$target_dir" "$dst" "prompts/${rel_path}"
+    done < <(find "${SCRIPT_DIR}/prompts" -type f -print0)
+    echo -e "${GREEN}  ✓ prompts/ (agent system prompts)${NC}"
+
+    echo -e "${DIM}  Manifest written: ${target_dir}/.opencode-max.manifest${NC}"
+}
+
+install_global() {
+    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+    echo -e "\n${CYAN}Installing globally to: ${config_dir}${NC}"
+    mkdir -p "${config_dir}"
+
+    manifest_write "$config_dir" "$VERSION"
+
+    cp "${SCRIPT_DIR}/opencode.json" "${config_dir}/opencode.json"
+    manifest_add_file "$config_dir" "${config_dir}/opencode.json" "opencode.json"
+    echo -e "${GREEN}  ✓ opencode.json${NC}"
+
+    cp "${SCRIPT_DIR}/tui.json" "${config_dir}/tui.json"
+    manifest_add_file "$config_dir" "${config_dir}/tui.json" "tui.json"
+    echo -e "${GREEN}  ✓ tui.json${NC}"
+
+    cp "${SCRIPT_DIR}/AGENTS.md" "${config_dir}/AGENTS.md"
+    manifest_add_file "$config_dir" "${config_dir}/AGENTS.md" "AGENTS.md"
+    echo -e "${GREEN}  ✓ AGENTS.md (global rules)${NC}"
+
+    for subdir in themes agents commands skills tools; do
+        mkdir -p "${config_dir}/${subdir}"
+        [[ -d "${SCRIPT_DIR}/.opencode/${subdir}" ]] || continue
+        while IFS= read -r -d '' src_file; do
+            local rel_path="${src_file#$SCRIPT_DIR/.opencode/$subdir/}"
+            local dst="${config_dir}/${subdir}/${rel_path}"
+            mkdir -p "$(dirname "$dst")"
+            cp "$src_file" "$dst"
+            manifest_add_file "$config_dir" "$dst" "${subdir}/${rel_path}"
+        done < <(find "${SCRIPT_DIR}/.opencode/${subdir}" -type f -print0)
+        echo -e "${GREEN}  ✓ ${subdir}/${NC}"
+    done
+
+    mkdir -p "${config_dir}/prompts"
+    while IFS= read -r -d '' src_file; do
+        local rel_path="${src_file#$SCRIPT_DIR/prompts/}"
+        local dst="${config_dir}/prompts/${rel_path}"
+        mkdir -p "$(dirname "$dst")"
+        cp "$src_file" "$dst"
+        manifest_add_file "$config_dir" "$dst" "prompts/${rel_path}"
+    done < <(find "${SCRIPT_DIR}/prompts" -type f -print0)
+    echo -e "${GREEN}  ✓ prompts/ (agent system prompts)${NC}"
+
+    echo -e "${DIM}  Manifest written: ${config_dir}/.opencode-max.manifest${NC}"
+}
+
+update_project() {
+    local target_dir="$1"
+    local installed_version
+    installed_version="$(manifest_get_version "$target_dir")"
+    echo -e "\n${CYAN}Smart-updating project (v${installed_version} → v${VERSION}): ${target_dir}${NC}"
+
+    smart_update_file "${SCRIPT_DIR}/opencode.json" "${target_dir}/opencode.json" "opencode.json" "$target_dir"
+    smart_update_file "${SCRIPT_DIR}/tui.json"      "${target_dir}/tui.json"      "tui.json"      "$target_dir"
+    smart_update_file "${SCRIPT_DIR}/AGENTS.md"     "${target_dir}/AGENTS.md"     "AGENTS.md"     "$target_dir"
+
+    while IFS= read -r -d '' src_file; do
+        local rel_path="${src_file#$SCRIPT_DIR/.opencode/}"
+        smart_update_file "$src_file" "${target_dir}/.opencode/${rel_path}" ".opencode/${rel_path}" "$target_dir"
+    done < <(find "${SCRIPT_DIR}/.opencode" -type f -print0)
+
+    while IFS= read -r -d '' src_file; do
+        local rel_path="${src_file#$SCRIPT_DIR/prompts/}"
+        smart_update_file "$src_file" "${target_dir}/prompts/${rel_path}" "prompts/${rel_path}" "$target_dir"
+    done < <(find "${SCRIPT_DIR}/prompts" -type f -print0)
+
+    # Update version in manifest
+    sed -i "s/^VERSION=.*/VERSION=${VERSION}/" "$(manifest_path "$target_dir")" 2>/dev/null || true
+    sed -i "s/^TIMESTAMP=.*/TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)/" "$(manifest_path "$target_dir")" 2>/dev/null || true
+}
+
+update_global() {
+    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+    local installed_version
+    installed_version="$(manifest_get_version "$config_dir")"
+    echo -e "\n${CYAN}Smart-updating global config (v${installed_version} → v${VERSION}): ${config_dir}${NC}"
+
+    smart_update_file "${SCRIPT_DIR}/opencode.json" "${config_dir}/opencode.json" "opencode.json" "$config_dir"
+    smart_update_file "${SCRIPT_DIR}/tui.json"      "${config_dir}/tui.json"      "tui.json"      "$config_dir"
+    smart_update_file "${SCRIPT_DIR}/AGENTS.md"     "${config_dir}/AGENTS.md"     "AGENTS.md"     "$config_dir"
+
+    for subdir in themes agents commands skills tools; do
+        [[ -d "${SCRIPT_DIR}/.opencode/${subdir}" ]] || continue
+        while IFS= read -r -d '' src_file; do
+            local rel_path="${src_file#$SCRIPT_DIR/.opencode/$subdir/}"
+            smart_update_file "$src_file" "${config_dir}/${subdir}/${rel_path}" "${subdir}/${rel_path}" "$config_dir"
+        done < <(find "${SCRIPT_DIR}/.opencode/${subdir}" -type f -print0)
+    done
+
+    while IFS= read -r -d '' src_file; do
+        local rel_path="${src_file#$SCRIPT_DIR/prompts/}"
+        smart_update_file "$src_file" "${config_dir}/prompts/${rel_path}" "prompts/${rel_path}" "$config_dir"
+    done < <(find "${SCRIPT_DIR}/prompts" -type f -print0)
+
+    sed -i "s/^VERSION=.*/VERSION=${VERSION}/" "$(manifest_path "$config_dir")" 2>/dev/null || true
+    sed -i "s/^TIMESTAMP=.*/TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)/" "$(manifest_path "$config_dir")" 2>/dev/null || true
+}
+
+# ─── Banner ───────────────────────────────────────────────────────────────────
 echo -e "${BOLD}${PURPLE}"
 echo "  ╔══════════════════════════════════════════╗"
-echo "  ║         OpenCode MAX Installer          ║"
+echo "  ║         OpenCode MAX Installer           ║"
 echo "  ║     God-Tier AI Coding Configuration     ║"
+printf "  ║          %-34s║\n" "Version v${VERSION}"
+echo "  ║   github.com/ab1nv/opencode-max          ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# ─── Check prerequisites ───────────────────────────────────────────────────
+# ─── Check for updates from GitHub ────────────────────────────────────────────
+check_for_update || true
+echo ""
+
+# ─── Check prerequisites ──────────────────────────────────────────────────────
 check_command() {
     if ! command -v "$1" &>/dev/null; then
         echo -e "${RED}[ERR] $1 is not installed${NC}"
@@ -109,116 +453,14 @@ check_command "opencode" || {
     [[ $REPLY =~ ^[Yy]$ ]] || exit 1
 }
 
-install_project() {
-    local target_dir="$1"
-    echo -e "\n${CYAN}Installing to project: ${target_dir}${NC}"
-
-    # Copy opencode.json
-    cp "${SCRIPT_DIR}/opencode.json" "${target_dir}/opencode.json"
-    echo -e "${GREEN}  ✓ opencode.json${NC}"
-
-    # Copy tui.json
-    cp "${SCRIPT_DIR}/tui.json" "${target_dir}/tui.json"
-    echo -e "${GREEN}  ✓ tui.json${NC}"
-
-    # Copy AGENTS.md
-    cp "${SCRIPT_DIR}/AGENTS.md" "${target_dir}/AGENTS.md"
-    echo -e "${GREEN}  ✓ AGENTS.md${NC}"
-
-    # Copy .opencode directory
-    mkdir -p "${target_dir}/.opencode"
-    cp -r "${SCRIPT_DIR}/.opencode/"* "${target_dir}/.opencode/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] .opencode/ (agents, commands, skills, themes, tools)${NC}"
-
-    # Copy prompts
-    mkdir -p "${target_dir}/prompts"
-    cp -r "${SCRIPT_DIR}/prompts/"* "${target_dir}/prompts/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] prompts/ (agent system prompts)${NC}"
-}
-
-update_project() {
-    local target_dir="$1"
-    echo -e "\n${CYAN}Updating project (safe mode): ${target_dir}${NC}"
-
-    safe_update_file "${SCRIPT_DIR}/opencode.json" "${target_dir}/opencode.json" "opencode.json"
-    safe_update_file "${SCRIPT_DIR}/tui.json" "${target_dir}/tui.json" "tui.json"
-    safe_update_file "${SCRIPT_DIR}/AGENTS.md" "${target_dir}/AGENTS.md" "AGENTS.md"
-    safe_update_tree "${SCRIPT_DIR}/.opencode" "${target_dir}/.opencode" ".opencode"
-    safe_update_tree "${SCRIPT_DIR}/prompts" "${target_dir}/prompts" "prompts"
-}
-
-install_global() {
-    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
-    echo -e "\n${CYAN}Installing globally to: ${config_dir}${NC}"
-
-    mkdir -p "${config_dir}"
-
-    # Copy global config
-    cp "${SCRIPT_DIR}/opencode.json" "${config_dir}/opencode.json"
-    echo -e "${GREEN}  [OK] opencode.json${NC}"
-
-    # Copy tui.json
-    cp "${SCRIPT_DIR}/tui.json" "${config_dir}/tui.json"
-    echo -e "${GREEN}  [OK] tui.json${NC}"
-
-    # Copy AGENTS.md as global rules
-    cp "${SCRIPT_DIR}/AGENTS.md" "${config_dir}/AGENTS.md"
-    echo -e "${GREEN}  [OK] AGENTS.md (global rules)${NC}"
-
-    # Copy themes
-    mkdir -p "${config_dir}/themes"
-    cp -r "${SCRIPT_DIR}/.opencode/themes/"* "${config_dir}/themes/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] themes/ (Gruvbox MAX)${NC}"
-
-    # Copy agents
-    mkdir -p "${config_dir}/agents"
-    cp -r "${SCRIPT_DIR}/.opencode/agents/"* "${config_dir}/agents/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] agents/ (grill-me, perf-profiler, changelog)${NC}"
-
-    # Copy commands
-    mkdir -p "${config_dir}/commands"
-    cp -r "${SCRIPT_DIR}/.opencode/commands/"* "${config_dir}/commands/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] commands/ (pre-commit, overview, explain, diff-summary)${NC}"
-
-    # Copy skills
-    mkdir -p "${config_dir}/skills"
-    cp -r "${SCRIPT_DIR}/.opencode/skills/"* "${config_dir}/skills/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] skills/ (plan-first, tdd, code-review, git-commit, debug-loop, to-prd)${NC}"
-
-    # Copy custom tools
-    mkdir -p "${config_dir}/tools"
-    cp -r "${SCRIPT_DIR}/.opencode/tools/"* "${config_dir}/tools/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] tools/ (handoff, run-checks)${NC}"
-
-    # Copy prompts
-    mkdir -p "${config_dir}/prompts"
-    cp -r "${SCRIPT_DIR}/prompts/"* "${config_dir}/prompts/" 2>/dev/null || true
-    echo -e "${GREEN}  [OK] prompts/ (agent system prompts)${NC}"
-}
-
-update_global() {
-    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
-    echo -e "\n${CYAN}Updating global config (safe mode): ${config_dir}${NC}"
-
-    safe_update_file "${SCRIPT_DIR}/opencode.json" "${config_dir}/opencode.json" "opencode.json"
-    safe_update_file "${SCRIPT_DIR}/tui.json" "${config_dir}/tui.json" "tui.json"
-    safe_update_file "${SCRIPT_DIR}/AGENTS.md" "${config_dir}/AGENTS.md" "AGENTS.md"
-    safe_update_tree "${SCRIPT_DIR}/.opencode/themes" "${config_dir}/themes" "themes"
-    safe_update_tree "${SCRIPT_DIR}/.opencode/agents" "${config_dir}/agents" "agents"
-    safe_update_tree "${SCRIPT_DIR}/.opencode/commands" "${config_dir}/commands" "commands"
-    safe_update_tree "${SCRIPT_DIR}/.opencode/skills" "${config_dir}/skills" "skills"
-    safe_update_tree "${SCRIPT_DIR}/.opencode/tools" "${config_dir}/tools" "tools"
-    safe_update_tree "${SCRIPT_DIR}/prompts" "${config_dir}/prompts" "prompts"
-}
-
-# ─── Installation mode ─────────────────────────────────────────────────────
+# ─── Installation mode ────────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}What do you want to do?${NC}"
 echo ""
 echo -e "  ${BOLD}1)${NC} ${GREEN}Current project${NC} — Install to ./opencode.json & ./.opencode/"
 echo -e "  ${BOLD}2)${NC} ${BLUE}Global config${NC}   — Install to ~/.config/opencode/"
 echo -e "  ${BOLD}3)${NC} ${PURPLE}Both${NC}            — Install globally + copy to current project"
-echo -e "  ${BOLD}4)${NC} ${YELLOW}Update${NC}          — Safe update (won't overwrite modified files)"
+echo -e "  ${BOLD}4)${NC} ${YELLOW}Update${NC}          — Smart update (preserves your customizations)"
 echo ""
 read -rp "Choose (1/2/3/4): " -n 1 INSTALL_MODE
 echo ""
@@ -236,7 +478,7 @@ case $INSTALL_MODE in
         ;;
     4)
         echo ""
-        echo -e "${CYAN}Safe update mode (non-destructive)${NC}"
+        echo -e "${CYAN}Smart update mode — your customized files will NOT be overwritten${NC}"
         echo -e "${CYAN}Which location should be updated?${NC}"
         echo ""
         echo -e "  ${BOLD}1)${NC} ${GREEN}Current project${NC}"
@@ -272,10 +514,10 @@ case $INSTALL_MODE in
         ;;
 esac
 
-# ─── Post-install ───────────────────────────────────────────────────────────
+# ─── Post-install ─────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${BOLD}${GREEN}      OpenCode MAX installed!${NC}"
+echo -e "${BOLD}${GREEN}   OpenCode MAX v${VERSION} installed! 🚀${NC}"
 echo -e "${BOLD}${GREEN}══════════════════════════════════════════${NC}"
 echo ""
 echo -e "${CYAN}Quick Start:${NC}"
@@ -290,8 +532,8 @@ echo -e "  ${BOLD}/commit${NC}                     — Generate commit message"
 echo -e "  ${BOLD}@grill-me${NC}                   — Challenge your design decisions"
 echo -e "  ${BOLD}@perf-profiler${NC}              — Performance analysis"
 echo ""
-echo -e "${CYAN}Updates:${NC}"
-echo -e "  ${BOLD}Re-run ./install.sh${NC}            — Choose option 4 for safe updates"
+echo -e "${CYAN}Stay updated:${NC}"
+echo -e "  ${BOLD}./install.sh${NC}                — Re-run to check for updates & smart-update"
 echo ""
 echo -e "${YELLOW}Tip: Run ${BOLD}/help${NC}${YELLOW} inside OpenCode to see all commands.${NC}"
 echo ""
