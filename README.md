@@ -3,18 +3,19 @@
   <img src="https://img.shields.io/badge/Theme-Gruvbox-fbf1c7?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgZmlsbD0iI2ZlODAxOSIvPjwvc3ZnPg==&logoColor=282828" alt="Gruvbox Theme" />
   <img src="https://img.shields.io/badge/Agents-12-b8bb26?style=for-the-badge" alt="12 Agents" />
   <img src="https://img.shields.io/badge/Skills-6-83a598?style=for-the-badge" alt="6 Skills" />
-  <img src="https://img.shields.io/badge/Commands-14-d3869b?style=for-the-badge" alt="14 Commands" />
+  <img src="https://img.shields.io/badge/Commands-14-b8bb26?style=for-the-badge" alt="14 Commands" />
+  <img src="https://img.shields.io/badge/Tools-2-d3869b?style=for-the-badge" alt="2 Tools" />
 </p>
 
 <h1 align="center">OpenCode MAX</h1>
 
 <p align="center">
   <strong>Turn vanilla OpenCode into a god-tier AI coding assistant.</strong><br/>
-  A drop-in configuration that gives you specialized agents, battle-tested skills, powerful custom commands, and a gorgeous Gruvbox theme — all designed to outperform Claude Code, Cursor, and every other AI coding tool.
+  A drop-in configuration that gives you specialized agents, battle-tested skills, powerful custom commands, and a gorgeous Gruvbox theme, all designed to outperform Claude Code, Cursor, and every other AI coding tool.
 </p>
 
 <p align="center">
-  <a href="#quick-install">Install in 30 seconds</a> •
+  <a href="#quick-install">Installation</a> •
   <a href="#whats-included">What's Included</a> •
   <a href="#agents">Agents</a> •
   <a href="#commands">Commands</a> •
@@ -138,14 +139,14 @@ opencode-max/
 
 ## Agents
 
-OpenCode MAX ships with **12 specialized agents** — 3 primary agents you can switch between with `Tab`, and 9 subagents invokable with `@`.
+OpenCode MAX ships with **12 specialized agents**: 3 primary agents you can switch between with `Tab`, and 9 subagents invokable with `@`.
 
 ### Primary Agents (switch with `Tab`)
 
 | Agent | Color | Purpose |
 |-------|-------|---------|
-| **Build** | Orange | Full-power implementation — all tools enabled |
-| **Plan** | Blue | Read-only analysis and planning — never modifies files |
+| **Build** | Orange | Full-power implementation: all tools enabled |
+| **Plan** | Blue | Read-only analysis and planning: never modifies files |
 | **Architect** | Purple | System design and architecture decisions |
 
 ### Subagents (invoke with `@agent-name`)
@@ -158,7 +159,7 @@ OpenCode MAX ships with **12 specialized agents** — 3 primary agents you can s
 | **Security Auditor** | `@security-auditor` | OWASP-based security vulnerability scanning |
 | **Refactor** | `@refactor` | Code quality improvement without behavior change |
 | **Explorer** | `@explorer` | Fast read-only codebase navigation (10 step limit) |
-| **Grill Me** | `@grill-me` | Socratic challenger — pressure-tests your design decisions |
+| **Grill Me** | `@grill-me` | Socratic challenger: pressure-tests your design decisions |
 | **Perf Profiler** | `@perf-profiler` | Finds bottlenecks, N+1 queries, and complexity issues |
 | **Changelog** | `@changelog` | Generates changelogs from git history |
 
@@ -167,16 +168,16 @@ OpenCode MAX ships with **12 specialized agents** — 3 primary agents you can s
 ```
 ┌─────────────────────────────────────────────┐
 │              Primary Agents                 │
-│  ┌─────────┐  ┌──────┐  ┌───────────┐      │
+│  ┌─────────┐  ┌──────┐  ┌───────────┐       │
 │  │  Build  │──│ Plan │──│ Architect │  Tab  │
-│  └────┬────┘  └──────┘  └───────────┘      │
-│       │                                      │
+│  └────┬────┘  └──────┘  └───────────┘       │
+│       │                                     │
 │       ▼ Delegates to subagents              │
 │  ┌──────────────────────────────────┐       │
-│  │ @code-reviewer  @debugger       │       │
-│  │ @docs-writer    @security       │       │
-│  │ @refactor       @explorer       │       │
-│  │ @grill-me       @perf-profiler  │       │
+│  │ @code-reviewer  @debugger        │       │
+│  │ @docs-writer    @security        │       │
+│  │ @refactor       @explorer        │       │
+│  │ @grill-me       @perf-profiler   │       │
 │  │ @changelog                       │       │
 │  └──────────────────────────────────┘       │
 └─────────────────────────────────────────────┘
@@ -484,17 +485,5 @@ This configuration is inspired by and built upon:
 - [Claude Code Templates](https://github.com/anthropics/claude-code) — Agent configuration patterns
 - [Matt Pocock's Skills](https://github.com/mattpocock/skills) — Workflow skill design
 - [Oh My Codex (OmX)](https://github.com/hiaux0/oh-my-codex) — Agent orchestration patterns
-- [Claude HowTo](https://github.com/luongnv89/claude-howto) — Configuration best practices
-
+- [Andrej Karpathy's LLM Skills](https://karpathy.ai/) - Base of entire design
 ---
-
-## License
-
-MIT — Use it, modify it, share it. Make your AI assistant unstoppable.
-
----
-
-<p align="center">
-  <strong>Built by developers who were tired of vanilla setups.</strong><br/>
-  <em>Star this repo if it made you more productive.</em>
-</p>
