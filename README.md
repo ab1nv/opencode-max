@@ -7,7 +7,9 @@
   <img src="https://img.shields.io/badge/Tools-2-d3869b?style=for-the-badge" alt="2 Tools" />
 </p>
 
-<h1 align="center">OpenCode MAX</h1>
+<h1 align="center">
+  <img src="https://i.ibb.co/fYqjLsjz/opencode-max-logo.png" alt="OpenCode MAX" />
+</h1>
 
 <p align="center">
   <strong>Turn vanilla OpenCode into a god-tier AI coding assistant.</strong><br/>
