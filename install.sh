@@ -139,31 +139,43 @@ smart_update_file() {
         echo -e "${BLUE}  [KEPT]      ${rel_key} ${DIM}(your customization preserved)${NC}"
     else
         # Both user AND upstream changed the file → true conflict
-        # Try a 3-way merge if diff3 is available
-        if command -v diff3 &>/dev/null; then
-            local tmp_base tmp_merged
-            tmp_base="$(mktemp)"
-            tmp_merged="$(mktemp)"
-            # Reconstruct base from git if possible
-            if git -C "$SCRIPT_DIR" cat-file -e HEAD:"${src#$SCRIPT_DIR/}" 2>/dev/null; then
-                git -C "$SCRIPT_DIR" show "HEAD~1:${src#$SCRIPT_DIR/}" > "$tmp_base" 2>/dev/null || cp "$src" "$tmp_base"
-            else
-                cp "$src" "$tmp_base"
-            fi
-            if diff3 -m "$dst" "$tmp_base" "$src" > "$tmp_merged" 2>/dev/null; then
-                # Clean 3-way merge succeeded
-                cp "$tmp_merged" "$dst"
-                manifest_add_file "$install_root" "$dst" "$rel_key"
-                rm -f "$tmp_base" "$tmp_merged"
-                ((UPDATE_OVERWRITTEN++))
-                echo -e "${GREEN}  [MERGED]    ${rel_key} ${DIM}(3-way merge succeeded)${NC}"
-                return
-            fi
-            rm -f "$tmp_base" "$tmp_merged"
+        # We use git merge-file to intelligently merge the 99% that matches,
+        # and leave standard conflict markers (<<<< ==== >>>) for the 1% that conflicts.
+        local tmp_base tmp_merged
+        tmp_base="$(mktemp)"
+        tmp_merged="$(mktemp)"
+        
+        # Reconstruct base from git if possible, else fallback to src
+        if git -C "$SCRIPT_DIR" cat-file -e HEAD:"${src#$SCRIPT_DIR/}" 2>/dev/null; then
+            git -C "$SCRIPT_DIR" show "HEAD~1:${src#$SCRIPT_DIR/}" > "$tmp_base" 2>/dev/null || cp "$src" "$tmp_base"
+        else
+            cp "$src" "$tmp_base"
         fi
-        # Could not auto-merge → record as conflict
-        UPDATE_CONFLICTS+=("$rel_key")
-        echo -e "${RED}  [CONFLICT]  ${rel_key} ${DIM}(both you and upstream changed this)${NC}"
+        
+        # Run 3-way merge. Exit 0 = clean, 1 = conflicts, <0 = error
+        git merge-file -q -p "$dst" "$tmp_base" "$src" > "$tmp_merged" 2>/dev/null
+        local merge_status=$?
+        
+        rm -f "$tmp_base"
+        
+        if [[ $merge_status -eq 0 ]]; then
+            # Clean 3-way merge succeeded
+            cp "$tmp_merged" "$dst"
+            manifest_add_file "$install_root" "$dst" "$rel_key"
+            ((UPDATE_OVERWRITTEN++))
+            echo -e "${GREEN}  [MERGED]    ${rel_key} ${DIM}(auto-merged cleanly)${NC}"
+        elif [[ $merge_status -eq 1 ]]; then
+            # Merged with conflicts! User gets 99% applied, markers for the 1%.
+            cp "$tmp_merged" "$dst"
+            manifest_add_file "$install_root" "$dst" "$rel_key"
+            UPDATE_CONFLICTS+=("$rel_key")
+            echo -e "${YELLOW}  [CONFLICT]  ${rel_key} ${DIM}(merged 99%, added conflict markers)${NC}"
+        else
+            # Fallback if git merge-file completely fails
+            UPDATE_CONFLICTS+=("$rel_key")
+            echo -e "${RED}  [ERROR]     ${rel_key} ${DIM}(merge algorithm failed)${NC}"
+        fi
+        rm -f "$tmp_merged"
     fi
 }
 
@@ -223,10 +235,17 @@ check_for_update() {
     fi
 
     local remote_version
-    remote_version="$(git -C "$SCRIPT_DIR" show origin/HEAD:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")"
+    # Try origin/master first, then main, then HEAD
+    remote_version="$(git -C "$SCRIPT_DIR" show origin/master:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")"
+    if [[ -z "$remote_version" ]]; then
+        remote_version="$(git -C "$SCRIPT_DIR" show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")"
+    fi
+    if [[ -z "$remote_version" ]]; then
+        remote_version="$(git -C "$SCRIPT_DIR" show origin/HEAD:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")"
+    fi
 
     if [[ -z "$remote_version" ]]; then
-        echo -e "${YELLOW}  Could not read remote VERSION — proceeding with local version.${NC}"
+        # No remote VERSION yet (likely initial push pending). Silently proceed.
         return 1
     fi
 
