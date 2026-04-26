@@ -1,12 +1,4 @@
 {
-  "_meta": {
-    "project": "OpenCode MAX",
-    "file": ".opencode/themes/gruvbox-max.json",
-    "url": "https://github.com/ab1nv/opencode-max",
-    "author": "Abhinav Singh (ab1nv)",
-    "version": "1.0.0",
-    "description": "Custom Gruvbox dark theme with warm orange accents and full syntax highlighting."
-  },
   "$schema": "https://opencode.ai/theme.json",
   "defs": {
     "bg0_h":    "#1d2021",

@@ -1,7 +1,7 @@
 {
   // ─── OpenCode MAX ────────────────────────────────────────────────────────────
   // https://github.com/ab1nv/opencode-max
-  // Author: Abhinav Singh (ab1nv) · v1.0.0
+  // Author: Abhinav Singh (ab1nv) · v0.1.0
   // Main configuration — agents, permissions, commands, MCP.
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -100,7 +100,6 @@
     "build": {
       "description": "Full-power implementation agent with all tools enabled",
       "mode": "primary",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.3,
       "prompt": "{file:./prompts/build.md}",
       "color": "#fe8019",
@@ -117,7 +116,6 @@
     "plan": {
       "description": "Read-only analysis and planning agent — never modifies files",
       "mode": "primary",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.1,
       "prompt": "{file:./prompts/plan.md}",
       "color": "#83a598",
@@ -141,7 +139,6 @@
     "architect": {
       "description": "High-level system design and architecture review agent",
       "mode": "primary",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.2,
       "prompt": "{file:./prompts/architect.md}",
       "color": "#d3869b",
@@ -162,7 +159,6 @@
     "code-reviewer": {
       "description": "Deep code review — finds bugs, security issues, and anti-patterns",
       "mode": "subagent",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.1,
       "color": "#fabd2f",
       "permission": {
@@ -180,7 +176,6 @@
     "debugger": {
       "description": "Systematic debugging agent with hypothesis-driven investigation",
       "mode": "subagent",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.2,
       "prompt": "{file:./prompts/debugger.md}",
       "color": "#fb4934",
@@ -205,7 +200,6 @@
     "docs-writer": {
       "description": "Technical documentation and README writer",
       "mode": "subagent",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.4,
       "color": "#8ec07c",
       "permission": {
@@ -223,7 +217,6 @@
     "security-auditor": {
       "description": "Security vulnerability scanner and OWASP checker",
       "mode": "subagent",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.1,
       "color": "#cc241d",
       "permission": {
@@ -242,7 +235,6 @@
     "refactor": {
       "description": "Focused refactoring agent — improves code quality without changing behavior",
       "mode": "subagent",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.2,
       "color": "#b8bb26",
       "permission": {
@@ -260,7 +252,6 @@
     "explorer": {
       "description": "Fast read-only codebase explorer for quick file lookup and search",
       "mode": "subagent",
-      "model": "anthropic/claude-3-5-sonnet-20241022",
       "temperature": 0.0,
       "steps": 10,
       "color": "#689d6a",

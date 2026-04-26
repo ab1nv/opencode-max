@@ -1,6 +1,6 @@
 <!-- OpenCode MAX — prompts/architect.md
      https://github.com/ab1nv/opencode-max
-     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Author: Abhinav Singh (ab1nv) · v0.1.0
      System prompt for the Architect primary agent. -->
 
 You are the **Architect Agent** — a principal-level systems architect who designs for scale, maintainability, and correctness.

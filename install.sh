@@ -139,8 +139,8 @@ smart_update_file() {
         echo -e "${BLUE}  [KEPT]      ${rel_key} ${DIM}(your customization preserved)${NC}"
     else
         # Both user AND upstream changed the file → true conflict
-        # We use git merge-file to intelligently merge the 99% that matches,
-        # and leave standard conflict markers (<<<< ==== >>>) for the 1% that conflicts.
+        # We use git merge-file for text files, but for JSON files we use a custom
+        # Node.js 3-way deep merge algorithm to preserve structure and AI settings without breaking JSON.
         local tmp_base tmp_merged
         tmp_base="$(mktemp)"
         tmp_merged="$(mktemp)"
@@ -152,30 +152,94 @@ smart_update_file() {
             cp "$src" "$tmp_base"
         fi
         
-        # Run 3-way merge. Exit 0 = clean, 1 = conflicts, <0 = error
-        git merge-file -q -p "$dst" "$tmp_base" "$src" > "$tmp_merged" 2>/dev/null
-        local merge_status=$?
-        
-        rm -f "$tmp_base"
-        
-        if [[ $merge_status -eq 0 ]]; then
-            # Clean 3-way merge succeeded
-            cp "$tmp_merged" "$dst"
-            manifest_add_file "$install_root" "$dst" "$rel_key"
-            ((UPDATE_OVERWRITTEN++))
-            echo -e "${GREEN}  [MERGED]    ${rel_key} ${DIM}(auto-merged cleanly)${NC}"
-        elif [[ $merge_status -eq 1 ]]; then
-            # Merged with conflicts! User gets 99% applied, markers for the 1%.
-            cp "$tmp_merged" "$dst"
-            manifest_add_file "$install_root" "$dst" "$rel_key"
-            UPDATE_CONFLICTS+=("$rel_key")
-            echo -e "${YELLOW}  [CONFLICT]  ${rel_key} ${DIM}(merged 99%, added conflict markers)${NC}"
+        local merge_status=0
+        if [[ "$src" == *.json ]] && command -v node &>/dev/null; then
+            # Smart JSON deep merge
+            cat << 'EOF' > "$tmp_merged.js"
+const fs = require('fs');
+function strip(s) { return s.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m); }
+try {
+  const bStr = fs.readFileSync(process.argv[2], 'utf8');
+  const oStr = fs.readFileSync(process.argv[3], 'utf8');
+  const tStr = fs.readFileSync(process.argv[4], 'utf8');
+  const base = JSON.parse(strip(bStr));
+  const ours = JSON.parse(strip(oStr));
+  const theirs = JSON.parse(strip(tStr));
+  function merge(b, o, t) {
+    if (o !== null && typeof o === 'object' && !Array.isArray(o) &&
+        t !== null && typeof t === 'object' && !Array.isArray(t)) {
+      const res = {};
+      const keys = new Set([...Object.keys(b||{}), ...Object.keys(o), ...Object.keys(t)]);
+      for (let k of keys) {
+        const v = merge(b ? b[k] : undefined, o[k], t[k]);
+        if (v !== undefined) res[k] = v;
+      }
+      return res;
+    } else {
+      if (JSON.stringify(o) !== JSON.stringify(b)) return o === undefined ? undefined : o;
+      if (JSON.stringify(t) !== JSON.stringify(b)) return t === undefined ? undefined : t;
+      return b;
+    }
+  }
+  const merged = merge(base, ours, theirs);
+  let header = "";
+  const lines = tStr.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === '{') {
+      header += '{\n';
+      for (let j = i + 1; j < lines.length; j++) {
+        if (lines[j].trim().startsWith('//') || lines[j].trim() === '') header += lines[j] + '\n';
+        else break;
+      }
+      break;
+    } else {
+      header += line + '\n';
+    }
+  }
+  let outJson = JSON.stringify(merged, null, 2);
+  outJson = outJson.replace(/^\{\n/, header);
+  fs.writeFileSync(process.argv[5], outJson);
+  process.exit(0);
+} catch (e) {
+  process.exit(1);
+}
+EOF
+            node "$tmp_merged.js" "$tmp_base" "$dst" "$src" "$tmp_merged"
+            merge_status=$?
+            rm -f "$tmp_merged.js"
+            
+            if [[ $merge_status -eq 0 ]]; then
+                cp "$tmp_merged" "$dst"
+                manifest_add_file "$install_root" "$dst" "$rel_key"
+                ((UPDATE_OVERWRITTEN++))
+                echo -e "${GREEN}  [MERGED]    ${rel_key} ${DIM}(smart JSON deep merge)${NC}"
+            else
+                UPDATE_CONFLICTS+=("$rel_key")
+                echo -e "${RED}  [ERROR]     ${rel_key} ${DIM}(JSON merge failed)${NC}"
+            fi
         else
-            # Fallback if git merge-file completely fails
-            UPDATE_CONFLICTS+=("$rel_key")
-            echo -e "${RED}  [ERROR]     ${rel_key} ${DIM}(merge algorithm failed)${NC}"
+            # Standard text-based 3-way merge
+            git merge-file -q -p "$dst" "$tmp_base" "$src" > "$tmp_merged" 2>/dev/null
+            merge_status=$?
+            
+            if [[ $merge_status -eq 0 ]]; then
+                cp "$tmp_merged" "$dst"
+                manifest_add_file "$install_root" "$dst" "$rel_key"
+                ((UPDATE_OVERWRITTEN++))
+                echo -e "${GREEN}  [MERGED]    ${rel_key} ${DIM}(auto-merged cleanly)${NC}"
+            elif [[ $merge_status -eq 1 ]]; then
+                cp "$tmp_merged" "$dst"
+                manifest_add_file "$install_root" "$dst" "$rel_key"
+                UPDATE_CONFLICTS+=("$rel_key")
+                echo -e "${YELLOW}  [CONFLICT]  ${rel_key} ${DIM}(merged 99%, added conflict markers)${NC}"
+            else
+                UPDATE_CONFLICTS+=("$rel_key")
+                echo -e "${RED}  [ERROR]     ${rel_key} ${DIM}(merge algorithm failed)${NC}"
+            fi
         fi
-        rm -f "$tmp_merged"
+        
+        rm -f "$tmp_base" "$tmp_merged"
     fi
 }
 
@@ -439,7 +503,7 @@ echo -e "${BOLD}${PURPLE}"
 echo "  ╔══════════════════════════════════════════╗"
 echo "  ║         OpenCode MAX Installer           ║"
 echo "  ║     God-Tier AI Coding Configuration     ║"
-printf "  ║          %-34s║\n" "Version v${VERSION}"
+printf "║          %-34s║\n" "Version v${VERSION}" ║
 echo "  ║   github.com/ab1nv/opencode-max          ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo -e "${NC}"

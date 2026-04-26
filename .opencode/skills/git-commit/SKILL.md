@@ -1,6 +1,6 @@
 <!-- OpenCode MAX — .opencode/skills/git-commit/SKILL.md
      https://github.com/ab1nv/opencode-max
-     Author: Abhinav Singh (ab1nv) · v1.0.0
+     Author: Abhinav Singh (ab1nv) · v0.1.0
      Skill: git-commit workflow. -->
 
 ---
