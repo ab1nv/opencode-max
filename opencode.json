@@ -1,0 +1,346 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // ─── Instructions ────────────────────────────────────────────────────────────
+  // Pull in AGENTS.md + any extra docs automatically.
+  "instructions": [
+    "AGENTS.md",
+    ".opencode/rules/*.md"
+  ],
+
+  // ─── Permissions ─────────────────────────────────────────────────────────────
+  // Default: ask for everything, then whitelist safe patterns.
+  "permission": {
+    "*": "allow",
+    "edit": "allow",
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow"
+    },
+    "bash": {
+      "*": "ask",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git branch*": "allow",
+      "git stash*": "allow",
+      "git show*": "allow",
+      "git blame*": "allow",
+      "git rev-parse*": "allow",
+      "grep *": "allow",
+      "rg *": "allow",
+      "find *": "allow",
+      "ls *": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "wc *": "allow",
+      "echo *": "allow",
+      "pwd": "allow",
+      "which *": "allow",
+      "type *": "allow",
+      "npm test*": "allow",
+      "npm run lint*": "allow",
+      "npm run build*": "allow",
+      "npx tsc*": "allow",
+      "npx jest*": "allow",
+      "npx vitest*": "allow",
+      "npx prettier*": "allow",
+      "npx eslint*": "allow",
+      "pnpm test*": "allow",
+      "pnpm lint*": "allow",
+      "pnpm build*": "allow",
+      "bun test*": "allow",
+      "cargo test*": "allow",
+      "cargo build*": "allow",
+      "cargo check*": "allow",
+      "cargo clippy*": "allow",
+      "go test*": "allow",
+      "go build*": "allow",
+      "go vet*": "allow",
+      "python -m pytest*": "allow",
+      "python -m mypy*": "allow",
+      "ruff *": "allow",
+      "make *": "ask",
+      "docker *": "ask",
+      "git commit*": "ask",
+      "git push*": "ask",
+      "git merge*": "ask",
+      "git rebase*": "ask",
+      "git reset*": "ask",
+      "git checkout*": "ask",
+      "rm *": "deny",
+      "rm -rf *": "deny",
+      "sudo *": "deny",
+      "chmod *": "deny",
+      "chown *": "deny"
+    },
+    "webfetch": "allow",
+    "websearch": "allow",
+    "skill": {
+      "*": "allow"
+    },
+    "task": {
+      "*": "allow"
+    },
+    "external_directory": "ask",
+    "doom_loop": "ask"
+  },
+
+  // ─── Primary & Sub Agents ───────────────────────────────────────────────────
+  "agent": {
+    "build": {
+      "description": "Full-power implementation agent with all tools enabled",
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.3,
+      "prompt": "{file:./prompts/build.md}",
+      "color": "#fe8019",
+      "permission": {
+        "bash": {
+          "*": "allow",
+          "rm *": "deny",
+          "rm -rf *": "deny",
+          "sudo *": "deny"
+        },
+        "edit": "allow"
+      }
+    },
+    "plan": {
+      "description": "Read-only analysis and planning agent — never modifies files",
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.1,
+      "prompt": "{file:./prompts/plan.md}",
+      "color": "#83a598",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "git status*": "allow",
+          "git diff*": "allow",
+          "git log*": "allow",
+          "git show*": "allow",
+          "grep *": "allow",
+          "rg *": "allow",
+          "find *": "allow",
+          "ls *": "allow",
+          "cat *": "allow",
+          "wc *": "allow"
+        }
+      }
+    },
+    "architect": {
+      "description": "High-level system design and architecture review agent",
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.2,
+      "prompt": "{file:./prompts/architect.md}",
+      "color": "#d3869b",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "git *": "allow",
+          "find *": "allow",
+          "ls *": "allow",
+          "cat *": "allow",
+          "grep *": "allow",
+          "rg *": "allow",
+          "wc *": "allow"
+        }
+      }
+    },
+    "code-reviewer": {
+      "description": "Deep code review — finds bugs, security issues, and anti-patterns",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.1,
+      "color": "#fabd2f",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "git diff*": "allow",
+          "git log*": "allow",
+          "git show*": "allow",
+          "grep *": "allow",
+          "rg *": "allow"
+        }
+      }
+    },
+    "debugger": {
+      "description": "Systematic debugging agent with hypothesis-driven investigation",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.2,
+      "prompt": "{file:./prompts/debugger.md}",
+      "color": "#fb4934",
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "ask",
+          "git *": "allow",
+          "grep *": "allow",
+          "rg *": "allow",
+          "find *": "allow",
+          "cat *": "allow",
+          "npm test*": "allow",
+          "npx jest*": "allow",
+          "npx vitest*": "allow",
+          "python -m pytest*": "allow",
+          "cargo test*": "allow",
+          "go test*": "allow"
+        }
+      }
+    },
+    "docs-writer": {
+      "description": "Technical documentation and README writer",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.4,
+      "color": "#8ec07c",
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "deny",
+          "git log*": "allow",
+          "git diff*": "allow",
+          "cat *": "allow",
+          "ls *": "allow",
+          "find *": "allow"
+        }
+      }
+    },
+    "security-auditor": {
+      "description": "Security vulnerability scanner and OWASP checker",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.1,
+      "color": "#cc241d",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "grep *": "allow",
+          "rg *": "allow",
+          "find *": "allow",
+          "cat *": "allow",
+          "npm audit*": "allow",
+          "npx snyk*": "ask"
+        }
+      }
+    },
+    "refactor": {
+      "description": "Focused refactoring agent — improves code quality without changing behavior",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.2,
+      "color": "#b8bb26",
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "ask",
+          "git *": "allow",
+          "npm test*": "allow",
+          "npx tsc*": "allow",
+          "cargo test*": "allow",
+          "go test*": "allow"
+        }
+      }
+    },
+    "explorer": {
+      "description": "Fast read-only codebase explorer for quick file lookup and search",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.0,
+      "steps": 10,
+      "color": "#689d6a",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "find *": "allow",
+          "ls *": "allow",
+          "cat *": "allow",
+          "grep *": "allow",
+          "rg *": "allow",
+          "wc *": "allow",
+          "head *": "allow",
+          "tail *": "allow"
+        }
+      }
+    }
+  },
+
+  // ─── Custom Commands ─────────────────────────────────────────────────────────
+  "command": {
+    "review": {
+      "description": "Run a full code review on staged changes",
+      "template": "Review all staged changes (git diff --cached). Check for:\n1. Logic errors and edge cases\n2. Security vulnerabilities (injection, XSS, auth bypass)\n3. Performance anti-patterns\n4. Missing error handling\n5. Code style violations\nProvide severity ratings: Critical, Warning, Suggestion",
+      "agent": "code-reviewer",
+      "subtask": true
+    },
+    "test": {
+      "description": "Run tests and analyze failures",
+      "template": "Run the full test suite. If any tests fail:\n1. Identify the root cause of each failure\n2. Suggest minimal fixes\n3. Check for flaky test patterns\n\nTest output:\n!`npm test 2>&1 || true`",
+      "agent": "build"
+    },
+    "plan": {
+      "description": "Create an implementation plan from a description",
+      "template": "Create a detailed implementation plan for: $ARGUMENTS\n\nInclude:\n1. File-by-file changes needed\n2. Dependencies and order of operations\n3. Test strategy\n4. Risk assessment\n5. Estimated complexity (S/M/L/XL)",
+      "agent": "plan"
+    },
+    "debug": {
+      "description": "Systematic debugging of an issue",
+      "template": "Debug this issue: $ARGUMENTS\n\nFollow a hypothesis-driven approach:\n1. State the observed behavior\n2. Form 3 hypotheses\n3. Test each hypothesis with minimal commands\n4. Identify root cause\n5. Propose fix with minimal blast radius",
+      "agent": "debugger",
+      "subtask": true
+    },
+    "security": {
+      "description": "Run a security audit on the codebase",
+      "template": "Perform a comprehensive security audit:\n1. Check for hardcoded secrets and credentials\n2. Review authentication and authorization flows\n3. Identify injection vulnerabilities (SQL, XSS, command)\n4. Check dependency vulnerabilities\n5. Review file permission and access control\n6. Check for sensitive data exposure\n\nProvide OWASP Top 10 mapping for each finding.",
+      "agent": "security-auditor",
+      "subtask": true
+    },
+    "refactor": {
+      "description": "Refactor code for better quality",
+      "template": "Refactor the following: $ARGUMENTS\n\nRules:\n1. Preserve ALL existing behavior (run tests before and after)\n2. Improve readability and maintainability\n3. Extract duplicated logic\n4. Simplify complex conditions\n5. Add missing type annotations\n6. Document non-obvious decisions",
+      "agent": "refactor",
+      "subtask": true
+    },
+    "commit": {
+      "description": "Generate a conventional commit message",
+      "template": "Analyze the staged changes and generate a conventional commit message.\n\nStaged changes:\n!`git diff --cached --stat`\n!`git diff --cached`\n\nFollow conventional commits format: type(scope): description\nTypes: feat, fix, docs, style, refactor, perf, test, build, ci, chore\nKeep the first line under 72 characters.\nAdd a body with bullet points for significant changes.",
+      "agent": "build"
+    },
+    "doc": {
+      "description": "Generate documentation for a file or module",
+      "template": "Generate comprehensive documentation for: $ARGUMENTS\n\nInclude:\n1. Module/file purpose\n2. Public API reference with types\n3. Usage examples\n4. Edge cases and gotchas\n5. Related files and dependencies",
+      "agent": "docs-writer",
+      "subtask": true
+    },
+    "tdd": {
+      "description": "Test-driven development workflow",
+      "template": "Follow TDD for: $ARGUMENTS\n\n1. Write failing tests FIRST (Red)\n2. Implement minimal code to pass (Green)\n3. Refactor while keeping tests green (Refactor)\n4. Repeat until feature is complete\n\nShow each Red -> Green -> Refactor cycle clearly.",
+      "agent": "build"
+    },
+    "perf": {
+      "description": "Performance analysis and optimization",
+      "template": "Analyze performance of: $ARGUMENTS\n\n1. Identify hot paths and bottlenecks\n2. Check for O(n²) or worse complexity\n3. Look for unnecessary re-renders (React)\n4. Check for memory leaks\n5. Suggest optimizations with benchmarks\n6. Prioritize by impact vs effort",
+      "agent": "code-reviewer",
+      "subtask": true
+    }
+  },
+
+  // ─── MCP Servers ─────────────────────────────────────────────────────────────
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    }
+  }
+}

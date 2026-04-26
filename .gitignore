@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+
+# OpenCode data (sessions, caches)
+.opencode/data/
+
+# WIP
+WORKFLOW.md
