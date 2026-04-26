@@ -62,6 +62,7 @@ The installer will ask you:
 1. **Current project** — Copies configs to your working directory
 2. **Global** — Installs to `~/.config/opencode/` (applies everywhere)
 3. **Both** — Global + current project
+4. **Update** — Safe update mode (does not overwrite modified files)
 
 ### Option 2: Manual Install
 
